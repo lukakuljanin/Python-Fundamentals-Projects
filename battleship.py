@@ -2,17 +2,66 @@ import os
 from simple_colors import * 
 
 tile_colours = {'-': blue, '■': green, 'X': red}
+SAVE_FILE = "battleship_save.json"
+
+
+test_board = [
+    ['■', '-', '■', '-', '■', '-,' '■', '-', '■', '-'],
+    ['■', '-', '■', '-', '■', '-,' '■', '-', '■', '-'],
+    ['■', '-', '■', '-', '■', '-,' '■', '-', '-', '-'],
+    ['■', '-', '■', '-', '■', '-,' '-', '-', '-', '-'],
+    ['■', '-', '■', '-', '-', '-,' '-', '-', '-', '-'],
+    ['■', '-', '-', '-', '-', '-,' '-', '-', '-', '-'],
+    ['-', '-', '-', '-', '-', '-,' '-', '-', '-', '-'],
+    ['-', '-', '-', '-', '-', '-,' '-', '-', '-', '-'],
+    ['-', '-', '-', '-', '-', '-,' '-', '-', '-', '-'],
+    ['-', '-', '-', '-', '-', '-,' '-', '-', '-', '-']
+]
+
+
+def create_game_state(p1_board, p2_board, p1_att_board, p2_att_board, p1_hits, p2_hits, current_player):
+    #Gathers all necessary data into a dictionary for saving.
+    return {
+        "current_player": current_player,
+        "p1_hits": p1_hits,
+        "p2_hits": p2_hits,
+        "p1_board": p1_board,
+        "p2_board": p2_board,
+        "p1_att_board": p1_att_board,
+        "p2_att_board": p2_att_board,
+    }
+
+
+def save_game(state_data):
+    """Writes the game state to a JSON file."""
+    try:
+        with open(SAVE_FILE, 'w') as f:
+            json.dump(state_data, f, indent=4)
+        print(green(f"\nGame successfully saved to {SAVE_FILE}."))
+    except Exception as e:
+        print(red(f"\nError saving game: {e}"))
+
+
+def load_game():
+    """Loads game state from a JSON file."""
+    try:
+        with open(SAVE_FILE, 'r') as f:
+            state_data = json.load(f)
+        return state_data
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        print(red(f"\nError loading game: {e}"))
+        return None
 
 
 # Colours the board tiles depending on the item
 def colour_tile(tile):
     return tile_colours.get(tile, lambda x: x)(tile)
 
-
 # Makes a 10 by 10 board
 def make_board():
     return [['-' for _ in range(10)] for _ in range(10)]
-
 
 # Takes in errors list and prints them
 def print_errors(errors):
@@ -20,7 +69,6 @@ def print_errors(errors):
         print(red(f"\n{i}"))
 
     input(yellow("\nPress 'ENTER' to continue: "))
-
 
 # Prints out the player's board
 def print_board(player, current_board, board_type):
@@ -35,15 +83,22 @@ def print_board(player, current_board, board_type):
 
 
 # Allows users to target other player's ship
-def battle_phase(player, current_attack_board, current_defend_board, hits):
+def battle_phase(player, current_att_board, current_def_board, hits):
     while True:
-        print_board(player, current_attack_board, 'Attack ')
+        print_board(player, current_att_board, 'Attack ')
 
         print(green("\nControls:"))
         print("Format: [letter][number]")
         print("Examples: A5, B10")
+        print("Special: 'save' to save game, 'xxx' to quit")
 
-        coord = input(yellow("\nEnter the coordinate you would like to attack (or 'xxx' to quit): "))
+        coord = input(yellow("\nEnter the coordinate you would like to attack: "))
+
+        # Handle save input
+        if coord.lower() == 'save':
+            state_data = create_game_state(p1_board, p2_board, p1_att_board, p2_att_board, p1_hits, p2_hits, player)
+            save_game(state_data)
+            exit()
 
         # Quit game
         if coord.lower() == 'xxx':
@@ -67,12 +122,10 @@ def battle_phase(player, current_attack_board, current_defend_board, hits):
             errors = []
 
             # Validate letter (A-J)
-            if letter not in "ABCDEFGHIJ":
-                errors.append("Letter must be a letter from A-J")
+            if letter not in "ABCDEFGHIJ": errors.append("Letter must be a letter from A-J")
     
             # Validate number (1-10)
-            if number not in range(1, 11):
-                errors.append("Number must be an integer from 1-10")
+            if number not in range(1, 11): errors.append("Number must be an integer from 1-10")
 
 
             # Print errors if any
@@ -85,22 +138,22 @@ def battle_phase(player, current_attack_board, current_defend_board, hits):
                 col = number - 1
 
                 # If a none empty tile is targeted
-                if current_attack_board[row][col] != '-':
+                if current_att_board[row][col] != '-':
                     print(red("\nPlease attack an empty tile (-)"))
                     input(yellow("\nPress 'ENTER' to continue: "))
 
                 else:
                     # If tile is empty, miss
-                    if current_defend_board[row][col] == '-':
-                        current_attack_board[row][col] = '●'
-                        print_board(player, current_attack_board, 'Attack ')
+                    if current_def_board[row][col] == '-':
+                        current_att_board[row][col] = '●'
+                        print_board(player, current_att_board, 'Attack ')
                         print(red("\nMiss!"))
 
                     # If tile is a ship, hit
                     else:
-                        current_attack_board[row][col] = 'X'
+                        current_att_board[row][col] = 'X'
                         hits += 1
-                        print_board(player, current_attack_board, 'Attack ')
+                        print_board(player, current_att_board, 'Attack ')
                         print(green("\nHit!"))          
 
                         # Check igf player has won   
@@ -117,7 +170,7 @@ def battle_phase(player, current_attack_board, current_defend_board, hits):
 
 
                     input(yellow("\nPress 'ENTER' to continue: "))
-                    return current_attack_board, hits
+                    return current_att_board, hits
 
 
         # If coord length isn't valid
@@ -180,20 +233,16 @@ def place_phase(player, current_board):
             errors = []
 
             # Validate ship length exists in available ships
-            if length not in ships.values():
-                errors.append(f"Invalid ship length. Available lengths: {set(ships.values())}")
+            if length not in ships.values(): errors.append(f"Invalid ship length. Available lengths: {set(ships.values())}")
     
             # Validate letter (A-J)
-            if letter not in "ABCDEFGHIJ":
-                errors.append("Letter must be a letter from A-J")
+            if letter not in "ABCDEFGHIJ": errors.append("Letter must be a letter from A-J")
     
             # Validate number (1-10)
-            if number not in range(1, 11):
-                errors.append("Number must be an integer from 1-10")
+            if number not in range(1, 11): errors.append("Number must be an integer from 1-10")
     
             # Validate direction
-            if direction not in "RLUD":
-                errors.append("Direction must be R (right), L (left), U (up), or D (down)")
+            if direction not in "RLUD": errors.append("Direction must be R (right), L (left), U (up), or D (down)")
             
 
             # Print errors if any
@@ -210,14 +259,10 @@ def place_phase(player, current_board):
                 
                 # Get coords for ship placement
                 for i in range(length):
-                    if direction == 'R':
-                        coords.append((row, col + i))
-                    elif direction == 'L':
-                        coords.append((row, col - i))
-                    elif direction == 'D':
-                        coords.append((row + i, col))
-                    elif direction == 'U':
-                        coords.append((row - i, col))
+                    if direction == 'R': coords.append((row, col + i))
+                    elif direction == 'L': coords.append((row, col - i))
+                    elif direction == 'D': coords.append((row + i, col))
+                    elif direction == 'U': coords.append((row - i, col))
 
 
                 # Check if ship placement is out of bounds
@@ -300,17 +345,47 @@ def place_phase(player, current_board):
 
 # Main function that starts the game
 def start_game():
-    player_1_board = place_phase(1, make_board())
-    player_2_board = place_phase(2, make_board())
+    loaded_state = None
+    
+    # Check for saved game
+    if os.path.exists(SAVE_FILE):
+        choice = input(yellow(f"Saved game found! Load from {SAVE_FILE}? (y/n): "))
+        if choice.lower() == 'y':
+            loaded_state = load_game()
+            if loaded_state:
+                print(green("Loading game..."))
+            else:
+                print(red("Error loading game. Starting new game."))
 
-    player_1_attack_board = make_board()
-    player_2_attack_board = make_board()
 
-    player_1_hits = player_2_hits = 0
+    if loaded_state:
+        # Load all game variables from the state
+        p1_board = loaded_state["p1_board"]
+        p2_board = loaded_state["p2_board"]
+        p1_att_board = loaded_state["p1_att_board"]
+        p2_att_board = loaded_state["p2_att_board"]
+        p1_hits = loaded_state["p1_hits"]
+        p2_hits = loaded_state["p2_hits"]
+        current_player = loaded_state["current_player"]
+        print(green(f"Game loaded. Player {current_player}'s turn."))  ###########
+
+
+    else:
+        #p1_board = place_phase(1, make_board())
+        #p2_board = place_phase(2, make_board())
+
+        p1_board = test_board[:]
+        p2_board = test_board[:]
+
+        p1_att_board = make_board()
+        p2_att_board = make_board()
+
+        p1_hits = p2_hits = 0
+
 
     while True:
-        player_1_attack_board, player_1_hits = battle_phase(1, player_1_attack_board, player_2_board, player_1_hits)
-        player_2_attack_board, player_2_hits = battle_phase(2, player_2_attack_board, player_1_board, player_2_hits)
+        p1_att_board, p1_hits = battle_phase(1, p1_att_board, p2_board, p1_hits)
+        p2_att_board, p2_hits = battle_phase(2, p2_att_board, p1_board, p2_hits)
 
 
 start_game()
