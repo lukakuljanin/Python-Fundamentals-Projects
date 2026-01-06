@@ -8,8 +8,34 @@ HITS_REQUIRED = sum(SHIPS_DICT.values())
 SAVE_FILE = "battleship_save.json"
 
 
-# Saves game data as json file
-def save_game(state_data):
+# Loads game save file
+def load_game():
+    try:
+        # Try to open battleship save file
+        with open(SAVE_FILE, 'r') as file:
+            state_data = json.load(file)
+
+        # Return save data if found
+        return state_data
+    
+    # Return none if error
+    except (Exception, FileNotFoundError):
+        print(red(f"\nError loading game, starting no game"))
+        return None
+
+# Checks if game was saved
+def save_game(save, current_player, p1_board, p2_board, p1_att_board, p2_att_board, p1_hits, p2_hits):
+    # Store data as dictionary / json file format
+    state_data = {
+        "current_player": current_player,
+        "p1_hits": p1_hits,
+        "p2_hits": p2_hits,
+        "p1_board": p1_board,
+        "p2_board": p2_board,
+        "p1_att_board": p1_att_board,
+        "p2_att_board": p2_att_board,
+    }
+
     try:
         # Write the game state to a json file
         with open(SAVE_FILE, 'w') as file:
@@ -19,40 +45,7 @@ def save_game(state_data):
     except Exception as error:
         print(red(f"\nError saving game: {error}\n"))
 
-# Loads game save file
-def load_game():
-    try:
-        # Try to open battleship save file
-        with open(SAVE_FILE, 'r') as f:
-            state_data = json.load(f)
-
-        # Return save data if found
-        return state_data
-    
-    # Return none if error
-    except FileNotFoundError:
-        return None
-    
-    except Exception as error:
-        print(red(f"\nError loading game: {error}"))
-        return None
-
-# Checks if game was saved
-def check_saved(save_bool, current_player, p1_board, p2_board, p1_att_board, p2_att_board, p1_hits, p2_hits):
-    if save_bool:
-        # Store data as dictionary / json file format
-        state_data = {
-            "current_player": current_player,
-            "p1_hits": p1_hits,
-            "p2_hits": p2_hits,
-            "p1_board": p1_board,
-            "p2_board": p2_board,
-            "p1_att_board": p1_att_board,
-            "p2_att_board": p2_att_board,
-        }
-
-        save_game(state_data)
-        exit()
+    exit()
 
 # Checks if battle ship file exists
 def check_save_file():
@@ -116,37 +109,6 @@ def attack_ship(letter, number, player, current_att_board , current_def_board, h
         input(yellow("\nPress 'ENTER' to continue: "))
         return hits, True
     
-# Places ship on the board
-def place_ship(length, coords, player, current_board, ships):
-    # Place ship on board
-    for row, col in coords:
-        current_board[row][col] = '■'
-
-    # Remove ship from ships dictionary
-    for ship_name, ship_size in list(ships.items()):
-        if ship_size == length:
-            del ships[ship_name]
-            break
-
-    # Check if it was the last ship
-    if not ships:
-        print_board(player, current_board, '')
-        print("\nAll ships placed!")
-        confirm = input(yellow("\nAre you satisfied with your ship placement? (y/n): "))
-            
-        if confirm.lower() == 'y':
-            print(green("\nShip placement confirmed!"))
-            input(yellow("\nPress 'ENTER' to continue: "))
-            return True
-
-        else:
-            # Reset ships and board for the player
-            ships = SHIPS_DICT.copy()
-            current_board = make_board()
-            print("\nResetting your board, place your ships again!")
-            input(yellow("\nPress 'ENTER' to continue: "))
-
-    return False
 
 # Checks if ship placement is valid
 def valid_placement(length, letter, number, direction, current_board):
@@ -204,12 +166,10 @@ def valid_placement(length, letter, number, direction, current_board):
     
     if errors:
         print_errors(errors)
-        return None
+        return False
 
     else:
         return coords
-
-
 
 # Takes in errors list and prints them
 def print_errors(errors):
@@ -290,6 +250,8 @@ def battle_phase(player, current_att_board, current_def_board, hits):
         # If coord length isn't valid
         else:
             print(red("\nInvalid format. Coordinate must be 2-3 characters long (ex. A5 or B10)"))
+            input(yellow("\nPress 'ENTER' to continue: "))
+            
             
 
 
@@ -370,16 +332,39 @@ def place_phase(player, current_board):
 
                 # Place ship if placement is valid
                 if coords:
-                    last_ship = place_ship(length, coords, player, current_board, ships)
+                    # Place ship on board
+                    for row, col in coords:
+                        current_board[row][col] = '■'
 
-                    # Return board if the last ship has been placed
-                    if last_ship:
-                        return current_board 
+                    # Remove ship from ships dictionary
+                    for ship_name, ship_size in list(ships.items()):
+                        if ship_size == length:
+                            del ships[ship_name]
+                            break
 
-                    
+                    # Check if it was the last ship
+                    if not ships:
+                        print_board(player, current_board, '')
+                        print("\nAll ships placed!")
+                        confirm = input(yellow("\nAre you satisfied with your ship placement? (y/n): "))
+                            
+                        if confirm.lower() == 'y':
+                            print(green("\nShip placement confirmed!"))
+                            input(yellow("\nPress 'ENTER' to continue: "))
+                            return current_board 
+
+                        else:
+                            # Reset ships and board for the player
+                            ships = SHIPS_DICT.copy()
+                            current_board = make_board()
+                            print("\nResetting your board, place your ships again!")
+                            input(yellow("\nPress 'ENTER' to continue: "))
+
+
         # If code isn't correct length
         else:
             print(red("\nInvalid format. Code must be 4-5 characters long (ex. 5A1D or 4B10D)"))
+            input(yellow("\nPress 'ENTER' to continue: "))
 
 
 # Main function that starts the game
@@ -400,8 +385,9 @@ def start_game():
         
         # Do a single battle phase for player 2 if it's their turn to finish cycle
         if current_player == 2:
-            p2_att_board, p2_hits, save_bool = battle_phase(2, p2_att_board, p1_board, p2_hits)
-            check_saved(save_bool, 2, p1_board, p2_board, p1_att_board, p2_att_board, p1_hits, p2_hits)
+            p2_att_board, p2_hits, save = battle_phase(2, p2_att_board, p1_board, p2_hits)
+            if save:
+                save_game(2, p1_board, p2_board, p1_att_board, p2_att_board, p1_hits, p2_hits)
 
 
     # If new game has started
@@ -409,23 +395,21 @@ def start_game():
         p1_board = place_phase(1, make_board())
         p2_board = place_phase(2, make_board())
 
-        #p1_board = test_board[:] #####
-        #p2_board = test_board[:] #####
-
         p1_att_board = make_board()
         p2_att_board = make_board()
 
-        p1_hits = 0
-        p2_hits = 0
+        p1_hits = p2_hits = 0
 
 
     # Battle phase loop
     while True:
-        p1_att_board, p1_hits, save_bool = battle_phase(1, p1_att_board, p2_board, p1_hits)
-        check_saved(save_bool, 1, p1_board, p2_board, p1_att_board, p2_att_board, p1_hits, p2_hits)
+        p1_att_board, p1_hits, save = battle_phase(1, p1_att_board, p2_board, p1_hits)
+        if save:
+            save_game(1, p1_board, p2_board, p1_att_board, p2_att_board, p1_hits, p2_hits)
 
-        #p2_att_board, p2_hits, save_bool = battle_phase(2, p2_att_board, p1_board, p2_hits)
-        #check_saved(save_bool, 2, p1_board, p2_board, p1_att_board, p2_att_board, p1_hits, p2_hits)
+        p2_att_board, p2_hits, save = battle_phase(2, p2_att_board, p1_board, p2_hits)
+        if save:
+            save_game(2, p1_board, p2_board, p1_att_board, p2_att_board, p1_hits, p2_hits)
 
 
 start_game()
